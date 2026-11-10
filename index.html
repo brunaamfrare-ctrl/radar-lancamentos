@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Radar de Lançamentos SP</title>
+  <meta name="description" content="Mapa de lançamentos imobiliários em São Paulo, com estoque e preços de tabela e de fechamento.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="demo" class="faixa-demo" hidden>
+    Modo de demonstração: os pins são fictícios. Preencha o arquivo <code>config.js</code> para usar o banco de dados real.
+  </div>
+
+  <main class="app">
+    <aside class="painel" id="painel" aria-label="Lançamentos">
+      <header class="painel-topo">
+        <button class="alca" id="alca" type="button" aria-label="Expandir ou recolher a lista"></button>
+        <div class="marca">
+          <span class="marca-icone" aria-hidden="true"></span>
+          <div>
+            <h1>Radar de Lançamentos</h1>
+            <p class="marca-sub">São Paulo · <span id="contagem">0 empreendimentos</span><span id="atualizado"></span></p>
+          </div>
+        </div>
+      </header>
+
+      <section id="vista-lista" class="vista">
+        <div class="filtros">
+          <label class="campo-busca">
+            <span class="sr">Buscar</span>
+            <input id="busca" type="search" placeholder="Buscar por nome, bairro ou incorporadora" autocomplete="off">
+          </label>
+          <select id="filtro-incorporadora" aria-label="Filtrar por incorporadora">
+            <option value="">Todas as incorporadoras</option>
+          </select>
+        </div>
+        <ul id="lista" class="lista"></ul>
+        <p id="lista-vazia" class="vazio" hidden></p>
+      </section>
+
+      <section id="vista-detalhe" class="vista" hidden></section>
+    </aside>
+
+    <div class="mapa-area">
+      <div id="mapa" aria-label="Mapa de satélite de São Paulo"></div>
+
+      <div class="acoes-mapa">
+        <button id="btn-adicionar" class="btn btn-primario" type="button">Adicionar informações</button>
+        <button id="btn-fontes" class="btn" type="button" hidden>Apresentações</button>
+        <button id="btn-equipe" class="btn" type="button">Entrar como equipe</button>
+      </div>
+
+      <div id="aviso-mover" class="aviso-mover" hidden>
+        Arraste o pin até o lugar certo.
+        <button id="btn-mover-ok" class="btn btn-primario btn-peq" type="button">Salvar posição</button>
+        <button id="btn-mover-cancelar" class="btn btn-peq" type="button">Cancelar</button>
+      </div>
+
+      <details class="legenda" id="legenda" open>
+        <summary class="legenda-titulo">Vendido até a data-base</summary>
+        <ul>
+          <li><span class="bola" style="--c: var(--v-alta)"></span>70% ou mais</li>
+          <li><span class="bola" style="--c: var(--v-media)"></span>40 a 69%</li>
+          <li><span class="bola" style="--c: var(--v-baixa)"></span>menos de 40%</li>
+          <li><span class="bola" style="--c: var(--v-sem)"></span>sem dado de estoque</li>
+          <li><span class="bola bola-aprox" style="--c: var(--v-sem)"></span>posição aproximada</li>
+        </ul>
+      </details>
+    </div>
+  </main>
+
+  <!-- Entrar como equipe -->
+  <dialog id="dlg-senha" class="dialogo dialogo-peq">
+    <form id="form-senha" method="dialog">
+      <h2>Entrar como equipe</h2>
+      <p class="dialogo-texto">Com a senha da equipe você envia apresentações, corrige dados e move pins. Quem só tem o link pode ver o mapa.</p>
+      <label class="rotulo" for="senha">Senha da equipe</label>
+      <input id="senha" type="password" autocomplete="current-password" required>
+      <p id="senha-erro" class="erro" hidden></p>
+      <div class="dialogo-rodape">
+        <button type="button" class="btn" data-fechar>Cancelar</button>
+        <button type="submit" class="btn btn-primario">Entrar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Adicionar informações -->
+  <dialog id="dlg-adicionar" class="dialogo">
+    <div class="dialogo-cabeca">
+      <h2>Adicionar informações</h2>
+      <button type="button" class="btn-x" data-fechar aria-label="Fechar">×</button>
+    </div>
+
+    <div id="passo-envio">
+      <p class="dialogo-texto">Envie apresentações da inteligência de mercado, prints de WhatsApp ou texto. A IA lê o material e mostra o que encontrou antes de gravar. Lançamentos que já estão no mapa ganham estoque e preço novos. Os que não estão viram pins novos, e o site pesquisa na web o que faltar.</p>
+
+      <label id="zona" class="zona" for="arquivos">
+        <input id="arquivos" type="file" multiple accept=".pdf,.pptx,.png,.jpg,.jpeg,.webp,.txt,.csv,.md,application/pdf,image/*">
+        <strong>Arraste os arquivos aqui</strong>
+        <span>ou clique para escolher · PDF, PowerPoint (.pptx), imagens e prints, .txt</span>
+      </label>
+      <ul id="arquivos-lista" class="arquivos-lista"></ul>
+
+      <label class="rotulo" for="texto-livre">Ou cole um texto</label>
+      <textarea id="texto-livre" rows="4" placeholder="Ex.: Visitei o stand do Residencial X ontem. Tabela a R$ 14.200/m², fechando a R$ 13.100/m². Restam 38 de 160 unidades."></textarea>
+
+      <div class="linha-campos">
+        <div>
+          <label class="rotulo" for="origem">Origem</label>
+          <input id="origem" type="text" placeholder="Ex.: Inteligência de Mercado – out/2026">
+        </div>
+        <div>
+          <label class="rotulo" for="data-ref">Data-base dos números</label>
+          <input id="data-ref" type="date">
+        </div>
+      </div>
+
+      <p id="envio-erro" class="erro" hidden></p>
+      <div class="dialogo-rodape">
+        <button type="button" class="btn" data-fechar>Cancelar</button>
+        <button id="btn-ler" type="button" class="btn btn-primario">Ler com IA</button>
+      </div>
+    </div>
+
+    <div id="passo-progresso" hidden>
+      <ul id="progresso" class="progresso"></ul>
+    </div>
+
+    <div id="passo-revisao" hidden>
+      <p id="revisao-resumo" class="dialogo-texto"></p>
+      <div id="revisao" class="revisao"></div>
+      <p id="revisao-erro" class="erro" hidden></p>
+      <div class="dialogo-rodape">
+        <button type="button" class="btn" id="btn-voltar-envio">Voltar</button>
+        <button id="btn-aplicar" type="button" class="btn btn-primario">Salvar no mapa</button>
+      </div>
+    </div>
+
+    <div id="passo-fim" hidden>
+      <ul id="progresso-fim" class="progresso"></ul>
+      <div class="dialogo-rodape">
+        <button type="button" class="btn btn-primario" data-fechar>Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Apresentações enviadas -->
+  <dialog id="dlg-fontes" class="dialogo">
+    <div class="dialogo-cabeca">
+      <h2>Apresentações e materiais enviados</h2>
+      <button type="button" class="btn-x" data-fechar aria-label="Fechar">×</button>
+    </div>
+    <div id="fontes-conteudo" class="fontes-conteudo"><p class="vazio">Carregando…</p></div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
