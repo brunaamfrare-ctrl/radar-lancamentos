@@ -15,6 +15,7 @@
   --v-media: #d29a1c;
   --v-baixa: #c9532f;
   --v-sem: #7f8c91;
+  --v-pre: #6a5acd;
   --sombra: 0 6px 24px rgba(10, 25, 22, 0.18);
   --fonte-titulo: "Archivo", "Helvetica Neue", Arial, sans-serif;
   --fonte-texto: "Public Sans", "Segoe UI", Roboto, Arial, sans-serif;
@@ -120,7 +121,8 @@ textarea { resize: vertical; }
 .bola-aprox { background: transparent; box-shadow: none; border: 2px dashed var(--c); }
 
 /* ───── ficha ───── */
-.ficha { padding: 14px 16px 28px; display: grid; gap: 18px; }
+.ficha { padding: 14px 16px 28px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.ficha > * { min-width: 0; }
 .voltar {
   justify-self: start; background: none; border: 0; padding: 0; cursor: pointer;
   color: var(--destaque); font-weight: 600;
@@ -133,6 +135,7 @@ textarea { resize: vertical; }
   padding: 2px 8px; border-radius: 999px; border: 1px solid var(--linha); color: var(--suave);
 }
 .chip-alerta { border-color: var(--v-media); color: var(--tinta); }
+.chip-status { border-color: var(--c); color: var(--tinta); }
 
 .precos { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--linha); border: 1px solid var(--linha); border-radius: var(--raio); overflow: hidden; }
 .precos > div { background: var(--painel); padding: 10px 12px; }
@@ -222,9 +225,8 @@ table.hist .fonte { color: var(--suave); font-size: 11.5px; }
 }
 .leaflet-container { font-family: var(--fonte-texto); }
 /* Satélite menos saturado; vias viram linhas brancas discretas; nomes levemente reforçados */
-.camada-satelite { filter: saturate(0.55) contrast(0.92) brightness(1.04); }
-.camada-vias { filter: grayscale(1) brightness(2.4); }
-.camada-nomes { filter: brightness(1.15); }
+.camada-satelite .leaflet-tile { filter: saturate(0.55) contrast(0.92) brightness(1.04); }
+.camada-vias .leaflet-tile { filter: grayscale(1) brightness(1.05) contrast(0.9); }
 .leaflet-control-layers { border-radius: 8px !important; }
 
 /* ───── diálogos ───── */

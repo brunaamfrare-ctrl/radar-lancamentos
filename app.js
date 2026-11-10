@@ -55,8 +55,11 @@
     if (!temValor(e.total_unidades) || !temValor(e.estoque) || e.total_unidades <= 0) return null;
     return Math.max(0, Math.min(1, (e.total_unidades - e.estoque) / e.total_unidades));
   }
+  // breve lançamento, abertura de decorado/stand: ainda sem vendas de verdade
+  const preLancamento = (e) => Boolean(e.status) && !/^lançamento$/i.test(e.status.trim());
   function corVendas(e) {
     const p = pctVendido(e);
+    if (preLancamento(e) && !p) return "var(--v-pre)";
     if (p === null) return "var(--v-sem)";
     if (p >= 0.7) return "var(--v-alta)";
     if (p >= 0.4) return "var(--v-media)";
@@ -128,21 +131,20 @@
   const camadaSatelite = () => L.tileLayer(`${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`, {
     maxZoom: 20, maxNativeZoom: 19, attribution: ATRIB_ESRI, className: "camada-satelite",
   });
-  // Ruas: linhas finas e claras (o CSS tira a cor), e nomes que aparecem conforme o zoom,
-  // em letra clara com contorno escuro, no estilo do satélite do Google Maps.
+  // Ruas em cinza (o CSS tira a cor da camada de vias da Esri); os nomes das ruas vêm na mesma
+  // camada e aparecem conforme o zoom; bairros e lugares vêm da camada de referência.
   const sateliteComRuas = L.layerGroup([
     camadaSatelite(),
     L.tileLayer(`${ESRI}/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}`, {
-      maxZoom: 20, maxNativeZoom: 19, className: "camada-vias", opacity: 0.32,
+      maxZoom: 20, maxNativeZoom: 19, className: "camada-vias", opacity: 0.6,
     }),
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png", {
-      maxZoom: 20, subdomains: "abcd", className: "camada-nomes",
-      attribution: "Nomes © OpenStreetMap · © CARTO",
+    L.tileLayer(`${ESRI}/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}`, {
+      maxZoom: 20, maxNativeZoom: 19,
     }),
   ]);
-  const mapaRuas = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-    maxZoom: 20, subdomains: "abcd",
-    attribution: "© OpenStreetMap · © CARTO",
+  const mapaRuas = L.tileLayer(`${ESRI}/World_Street_Map/MapServer/tile/{z}/{y}/{x}`, {
+    maxZoom: 20, maxNativeZoom: 19,
+    attribution: "© Esri, HERE, Garmin, OpenStreetMap",
   });
 
   const mapa = L.map("mapa", {
@@ -210,7 +212,7 @@
     const itens = filtrados();
     $("#contagem").textContent = `${int.format(estado.lista.length)} ${estado.lista.length === 1 ? "empreendimento" : "empreendimentos"}`;
     $("#lista").innerHTML = itens.map((e) => {
-      const sub = [e.bairro, e.incorporadora].filter(Boolean).join(" · ") || "Sem bairro informado";
+      const sub = [e.status, e.bairro, e.incorporadora].filter(Boolean).join(" · ") || "Sem bairro informado";
       const preco = temValor(e.preco_fechamento_m2) ? e.preco_fechamento_m2 : e.preco_tabela_m2;
       const precoRot = temValor(e.preco_fechamento_m2) ? "fechamento" : temValor(e.preco_tabela_m2) ? "tabela" : "";
       const est = temValor(e.estoque) ? `${int.format(e.estoque)} em estoque` : "";
@@ -289,6 +291,7 @@
     const p = pctVendido(e);
     const d = desconto(e);
     const chips = [];
+    if (e.status) chips.push(`<span class="chip chip-status" style="--c:${corVendas(e)}">${esc(e.status)}</span>`);
     if (e.posicao_aproximada) chips.push(`<span class="chip chip-alerta">Posição aproximada</span>`);
     if (e.pesquisa_status === "pendente") chips.push(`<span class="chip">Pesquisa na web pendente</span>`);
     if (e.pesquisa_status === "erro") chips.push(`<span class="chip chip-alerta">Pesquisa na web falhou</span>`);
@@ -296,12 +299,34 @@
 
     const fatos = [
       ["Lançamento", data(e.data_lancamento)],
+      ["Entrega", e.entrega ? data(e.entrega) : null],
       ["Endereço", e.endereco || "—"],
-      ["Bairro", e.bairro || "—"],
+      ["Bairro", [e.bairro, e.cidade && e.cidade !== "São Paulo" ? e.cidade : null].filter(Boolean).join(" · ") || "—"],
       ["Terreno", temValor(e.area_terreno_m2) ? `${int.format(e.area_terreno_m2)} m²` : "—"],
       ["Produto", e.produto || "—"],
       ["Metragens", e.metragens || "—"],
-    ].map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
+      ["Vendedora", e.vendedora || null],
+    ].filter(([, v]) => v !== null).map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
+
+    const tips = Array.isArray(e.tipologias) ? e.tipologias : [];
+    const temVenda = tips.some((t) => temValor(t.estoque) || temValor(t.vendido_pct));
+    const temFech = tips.some((t) => temValor(t.preco_fechamento_m2));
+    const tipsHTML = !tips.length ? "" : `<section><h3 class="secao-titulo">Tipologias</h3><div class="tabela-rolagem"><table class="hist">
+        <thead><tr><th>Unidade</th><th style="text-align:right">Unid.</th><th style="text-align:right">Vagas</th>
+          ${temVenda ? `<th style="text-align:right">Estoque</th><th style="text-align:right">Vend.</th>` : ""}
+          <th style="text-align:right">${temFech ? "Fech." : "Tabela"} R$/m²</th><th style="text-align:right">Ticket</th></tr></thead>
+        <tbody>${tips.map((t) => {
+          const area = t.area_txt || (temValor(t.area) ? `${String(t.area).replace(".", ",")} m²` : "—");
+          const desc = [t.descricao, t.dorms ? `${t.dorms} dorm${t.dorms > 1 ? "s" : ""}.` : null, t.tipo && t.tipo !== "Mercado" ? t.tipo : null].filter(Boolean).join(" · ");
+          const preco = temFech ? t.preco_fechamento_m2 : (t.preco_atual_m2 || t.preco_lancamento_m2);
+          return `<tr><td>${esc(area)}${desc ? `<div class="fonte">${esc(desc)}</div>` : ""}</td>
+            <td class="n">${temValor(t.unidades) ? int.format(t.unidades) : "—"}</td>
+            <td class="n">${temValor(t.vagas) ? t.vagas : "—"}</td>
+            ${temVenda ? `<td class="n">${temValor(t.estoque) ? int.format(t.estoque) : "—"}</td><td class="n">${temValor(t.vendido_pct) ? `${int.format(t.vendido_pct)}%` : "—"}</td>` : ""}
+            <td class="n">${temValor(preco) ? int.format(Math.round(preco)) : "—"}</td>
+            <td class="n">${esc(ticket(t.ticket))}</td></tr>`;
+        }).join("")}</tbody></table></div>
+        <p class="nota">Preço e ticket por tipologia; o resumo acima usa a média ponderada pela área vendável.</p></section>`;
 
     const estoqueBloco = temValor(e.estoque) || temValor(e.total_unidades)
       ? `<div class="largo"><div>
@@ -364,6 +389,7 @@
       ${precos}
       <dl class="fatos">${fatos}</dl>
       ${e.observacoes ? `<p class="nota">${esc(e.observacoes)}</p>` : ""}
+      ${tipsHTML}
       <section><h3 class="secao-titulo">Histórico</h3>${histHTML}</section>
       <div class="links">${links.join("")}</div>
       ${fontesWeb}
