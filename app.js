@@ -126,12 +126,19 @@
   const ESRI = "https://server.arcgisonline.com/ArcGIS/rest/services";
   const ATRIB_ESRI = "Imagens © Esri, Maxar, Earthstar Geographics";
   const camadaSatelite = () => L.tileLayer(`${ESRI}/World_Imagery/MapServer/tile/{z}/{y}/{x}`, {
-    maxZoom: 20, maxNativeZoom: 19, attribution: ATRIB_ESRI,
+    maxZoom: 20, maxNativeZoom: 19, attribution: ATRIB_ESRI, className: "camada-satelite",
   });
+  // Ruas: linhas finas e claras (o CSS tira a cor), e nomes que aparecem conforme o zoom,
+  // em letra clara com contorno escuro, no estilo do satélite do Google Maps.
   const sateliteComRuas = L.layerGroup([
     camadaSatelite(),
-    L.tileLayer(`${ESRI}/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 20, maxNativeZoom: 19, opacity: 0.85 }),
-    L.tileLayer(`${ESRI}/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}`, { maxZoom: 20, maxNativeZoom: 19 }),
+    L.tileLayer(`${ESRI}/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}`, {
+      maxZoom: 20, maxNativeZoom: 19, className: "camada-vias", opacity: 0.32,
+    }),
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png", {
+      maxZoom: 20, subdomains: "abcd", className: "camada-nomes",
+      attribution: "Nomes © OpenStreetMap · © CARTO",
+    }),
   ]);
   const mapaRuas = L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
     maxZoom: 20, subdomains: "abcd",
