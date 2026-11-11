@@ -56,7 +56,7 @@
     return Math.max(0, Math.min(1, (e.total_unidades - e.estoque) / e.total_unidades));
   }
   // breve lançamento, abertura de decorado/stand: ainda sem vendas de verdade
-  const preLancamento = (e) => Boolean(e.status) && !/^lançamento$/i.test(e.status.trim());
+  const preLancamento = (e) => /breve|decorado|stand|pré/i.test(e.status || "");
   function corVendas(e) {
     const p = pctVendido(e);
     if (preLancamento(e) && !p) return "var(--v-pre)";
